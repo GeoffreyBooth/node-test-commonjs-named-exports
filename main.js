@@ -106,10 +106,9 @@ const installPackages = async (packages) => {
 
 const testPackages = async (installedPackages) => {
 	const results = {
-		passedPackages: [],
-		failedPackages: [],
-		passedPackagesCount: 0,
-		failedPackagesCount: 0,
+		packagesWithAllNamesDetected: [],
+		packagesWithSomeNamesDetected: [],
+		packagesWithNoNamesDetected: [],
 		expectedNamesCount: 0,
 		detectedNamesCount: 0,
 	};
@@ -131,11 +130,13 @@ const testPackages = async (installedPackages) => {
 		}
 		const result = test.runTest();
 		if (result.pass) {
-			results.passedPackages.push(name);
-			results.passedPackagesCount++;
+			results.packagesWithAllNamesDetected.push(name);
 		} else {
-			results.failedPackages.push(name);
-			results.failedPackagesCount++;
+			if (result.detectedNames.length === 0) {
+				results.packagesWithNoNamesDetected.push(name);
+			} else {
+				results.packagesWithSomeNamesDetected.push(name);
+			}
 		}
 		results.expectedNamesCount += result.expectedNames.length;
 		results.detectedNamesCount += result.detectedNames.length;
@@ -149,11 +150,19 @@ const testPackages = async (installedPackages) => {
 
 const processResults = async (results) => {
 	await writeFile('./results.json', JSON.stringify(results, null, '\t')).catch(console.error);
-	const { passedPackages, failedPackages, passedPackagesCount, failedPackagesCount, expectedNamesCount, detectedNamesCount } = results;
-	console.log(`${passedPackagesCount} of ${passedPackagesCount + failedPackagesCount} packages (${Math.round((passedPackagesCount / (passedPackagesCount + failedPackagesCount)) * 100)}%) had all CommonJS named exports detected successfully.`);
-	console.log(`${detectedNamesCount} of ${detectedNamesCount + expectedNamesCount} CommonJS named exports (${Math.round(detectedNamesCount / (detectedNamesCount + expectedNamesCount) * 100)}%) were detected successfully.`);
-	console.log(`\nSuccessfully detected packages:\n- ${passedPackages.join('\n- ')}`);
-	console.log(`\nUnsuccessfully detected packages:\n- ${failedPackages.join('\n- ')}`);
+	const { packagesWithAllNamesDetected, packagesWithSomeNamesDetected, packagesWithNoNamesDetected, expectedNamesCount, detectedNamesCount } = results;
+	const allPackagesCount = packagesWithAllNamesDetected.length + packagesWithSomeNamesDetected.length + packagesWithNoNamesDetected.length;
+	const allNamesCount = expectedNamesCount + detectedNamesCount;
+
+	console.log(`\n${packagesWithAllNamesDetected.length} of ${allPackagesCount} packages (${Math.round(packagesWithAllNamesDetected.length / allPackagesCount * 100)}%) had all CommonJS named exports detected.`);
+	console.log(`${packagesWithSomeNamesDetected.length} of ${allPackagesCount} packages (${Math.round(packagesWithSomeNamesDetected.length / allPackagesCount * 100)}%) had some but not all CommonJS named exports detected.`);
+	console.log(`${packagesWithNoNamesDetected.length} of ${allPackagesCount} packages (${Math.round(packagesWithNoNamesDetected.length / allPackagesCount * 100)}%) had no CommonJS named exports detected.`);
+
+	console.log(`\n${detectedNamesCount} of ${allNamesCount} CommonJS named exports (${Math.round(detectedNamesCount / allNamesCount * 100)}%) were detected successfully.`);
+
+	console.log(`\nPackages with all CommonJS named exports detected:\n- ${packagesWithAllNamesDetected.join('\n- ')}`);
+	console.log(`\nPackages with some but not all CommonJS named exports detected:\n- ${packagesWithSomeNamesDetected.join('\n- ')}`);
+	console.log(`\nPackages with no CommonJS named exports detected:\n- ${packagesWithNoNamesDetected.join('\n- ')}`);
 }
 
 
