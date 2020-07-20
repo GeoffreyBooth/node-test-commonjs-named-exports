@@ -5,8 +5,9 @@ const require = createRequire(import.meta.url);
 
 
 export const compareNamedExports = (packageName, requiredPackage, importedPackage) => {
-	const requiredNames = Object.keys(requiredPackage).filter(name => name !== 'default' && name !== '__esModule');
-	const importedNames = Object.keys(importedPackage).filter(name => name !== 'default' && name !== '__esModule');
+	const transpiled = Reflect.ownKeys(requiredPackage).includes('__esModule');
+	const requiredNames = Reflect.ownKeys(requiredPackage).filter(name => name !== 'default' && name !== '__esModule');
+	const importedNames = Reflect.ownKeys(importedPackage).filter(name => name !== 'default' && name !== '__esModule');
 	const importedNamesSet = new Set(importedNames);
 	const detectedNames = [];
 	const missingNames = [];
@@ -18,20 +19,17 @@ export const compareNamedExports = (packageName, requiredPackage, importedPackag
 		}
 	});
 
-	let pass;
-	if (missingNames.length === 0) {
-		pass = true;
-		if (env.NODE_DEBUG?.includes('test-packages')) {
+	if (env.NODE_DEBUG?.includes('test-packages')) {
+		if (missingNames.length === 0) {
 			console.log(`${packageName}: All ${requiredNames.length} CommonJS named exports successfully detected`);
-		}
-	} else {
-		pass = false;
-		if (env.NODE_DEBUG?.includes('test-packages')) {
+		} else {
 			console.log(`${packageName}: ${detectedNames.length} of ${requiredNames.length} (${Math.round(detectedNames.length / requiredNames.length * 100)}%) CommonJS named exports successfully detected. ${(detectedNames.length !== 0) ? 'Detected: ' + detectedNames.join(', ') + '. ' : ''}Missing: ${missingNames.join(', ')}`);
 		}
 	}
+
 	return {
-		pass,
+		name: packageName,
+		transpiled,
 		expectedNames: requiredNames,
 		detectedNames,
 		missingNames
