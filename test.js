@@ -5,8 +5,8 @@ const require = createRequire(import.meta.url);
 
 
 export const compareNamedExports = (packageName, requiredPackage, importedPackage) => {
-	const requiredNames = Object.keys(requiredPackage).filter(name => name !== 'default');
-	const importedNames = Object.keys(importedPackage).filter(name => name !== 'default');
+	const requiredNames = Object.keys(requiredPackage).filter(name => name !== 'default' && name !== '__esModule');
+	const importedNames = Object.keys(importedPackage).filter(name => name !== 'default' && name !== '__esModule');
 	const importedNamesSet = new Set(importedNames);
 	const detectedNames = [];
 	const missingNames = [];
