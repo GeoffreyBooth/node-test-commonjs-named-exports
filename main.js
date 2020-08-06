@@ -6,7 +6,7 @@ import { execFile as execFileCallback } from 'child_process';
 const execFile = promisify(execFileCallback);
 
 import { get } from 'https';
-import { chdir, cwd, execPath, stdout as processStdout } from 'process';
+import { chdir, cwd, execPath, stdout as processStdout, exit } from 'process';
 
 
 const excludePackages = new Set([
@@ -55,53 +55,92 @@ const excludePackages = new Set([
 	...[
 		'101',
 		'after',
+		'anima-yocto-event',
+		'anima-yocto-lite',
 		'artusi-kitchen-tools',
 		'autoprefixer-core',
+		'ava',
+		'azure',
+		'babel-loader',
 		'base64',
 		'bigint',
+		'bin-build',
 		'bitcore',
+		'blob',
 		'bluetooth-hci-socket',
+		'browserstacktunnel-wrapper',
 		'bufferstream',
 		'buffertools',
+		'cliff',
 		'config',
+		'cordova',
+		'decompress',
 		'download',
+		'electron-download',
+		'ember',
+		'epoll',
 		'exec-sync',
+		'fairmont',
 		'ffi',
 		'fibers',
+		'firmata',
+		'fis-parser-less',
 		'forever',
 		'fstream',
+		'fstream-ignore',
 		'gcloud',
+		'gulp-stylus',
 		'hiredis',
 		'i2c',
 		'inotify',
+		'insight',
+		'iotdb',
 		'istanbul',
 		'kexec',
+		'kue',
 		'lame',
+		'lint',
 		'lwip',
-		'mariasql',
 		'mapnik',
+		'mariasql',
+		'material-ui',
 		'memwatch',
 		'mraa',
 		'nan',
+		'newrelic',
 		'nib',
+		'node-fibers',
 		'node-icu-charset-detector',
 		'node-inspector',
 		'node-protobuf',
 		'node-proxy',
 		'node-syslog',
+		'node-telegram-bot-api',
+		'nodegit',
 		'NodObjC',
 		'npmconf',
+		'onoff',
 		'opencv',
+		'parse',
 		'pg',
 		'player',
 		'prompt',
 		'pty.js',
+		'react-addons-test-utils',
 		'ref',
 		'ref-struct',
+		'sharp',
+		'soupselect',
+		'streamline-runtime',
 		'stylus',
+		'sync',
+		'tar-pack',
+		'tar.gz',
+		'tarball-extract',
 		'time',
 		'ursa',
 		'usage',
+		'usb',
 		'v8-profiler',
 		'weak',
 		'windows.foundation',
@@ -110,6 +149,7 @@ const excludePackages = new Set([
 		'windows.storage.provider',
 		'windows.storage.search',
 		'windows.storage.streams',
+		'x-log',
 		'xpc-connection',
 		'xtuple-server-lib',
 		'zmq',
@@ -196,27 +236,21 @@ const analyzePackages = async (packages) => {
 			}
 		}
 
-		if (new RegExp(`import {.*} from ['"]${name}['"\`]`).test(readme) ||
-				new RegExp(`{.*} = require\\(['"\`]${name}['"\`]`).test(readme)) {
-			packagesToTest.push(name);
-		}
+		const readmeEncouragesNamedExports =
+			new RegExp(`import {.*} from ['"]${name}['"\`]`).test(readme) ||
+			new RegExp(`{.*} = require\\(['"\`]${name}['"\`]`).test(readme);
+
+		packagesToTest.push({name, readmeEncouragesNamedExports});
 	}
-	console.log(`\nFound ${packagesToTest.length} packages with readmes suggesting that users should use named exports.\n`);
 	return packagesToTest;
 }
 
 
 const testPackages = async (packages) => {
-	const results = {
-		packagesWithOnlyDefaultCommonJSExport: [],
-		packagesWithAllNamesDetected: [],
-		packagesWithSomeNamesDetected: [],
-		packagesWithNoNamesDetected: [],
-	};
-
+	const results = [];
 	const testScript = await readFile('./test.js', 'utf8');
 	for (let i = 0, len = packages.length; i < len; i++) {
-		const name = packages[i];
+		const { name, readmeEncouragesNamedExports } = packages[i];
 		const js = testScript.replace(/REPLACE_WITH_PACKAGE_NAME/g, name);
 		await writeFile('./test-app/run-test.js', js);
 		processStdout.clearLine();
@@ -229,36 +263,97 @@ const testPackages = async (packages) => {
 			continue; // Skip modules that fail to import, e.g. because they assume a browser environment
 		}
 		const result = test.runTest();
-		if (result.expectedNames.length === 0) {
-			results.packagesWithOnlyDefaultCommonJSExport.push(result);
-		} else if (result.expectedNames.length === result.detectedNames.length) {
-			results.packagesWithAllNamesDetected.push(result);
-		} else if (result.detectedNames.length !== 0) {
-			results.packagesWithSomeNamesDetected.push(result);
-		} else {
-			results.packagesWithNoNamesDetected.push(result);
-		}
+		result.readmeEncouragesNamedExports = readmeEncouragesNamedExports;
+		results.push(result);
 	}
 	processStdout.clearLine();
 	processStdout.cursorTo(0);
-
+	await writeFile('./results.json', JSON.stringify(results, null, '\t')).catch(console.error);
 	return results;
 }
 
 
-const processResults = async (results) => {
-	await writeFile('./results.json', JSON.stringify(results, null, '\t')).catch(console.error);
-	const { packagesWithOnlyDefaultCommonJSExport, packagesWithAllNamesDetected, packagesWithSomeNamesDetected, packagesWithNoNamesDetected } = results;
-	const allPackagesCount = packagesWithOnlyDefaultCommonJSExport.length + packagesWithAllNamesDetected.length + packagesWithSomeNamesDetected.length + packagesWithNoNamesDetected.length;
+const reportResults = (results) => {
+	const testedCount = results.length;
 
-	if (packagesWithOnlyDefaultCommonJSExport.length !== 0) {
-		console.log(`\n- ${Math.round(packagesWithOnlyDefaultCommonJSExport.length / allPackagesCount * 100)}% have only a default export, usable in both CommonJS and ESM.\n`);
+	// First run through all packages and determine if each one passes or fails per our criteria
+	const report = {
+		passes: {
+			count: 0,
+			defaultOnly: 0,
+			allDetected: 0,
+			readmeEncouragedNamedExportsAndSomeDetected: 0,
+			readmeDidntEncourageNamedExportsAndSomeDetected: 0,
+			readmeDidntEncourageNamedExportsAndNoneDetected: 0,
+		},
+		failures: {
+			count: 0,
+			readmeEncouragedNamedExportsButNoneDetected: 0,
+		}
 	}
-	console.log(`- ${Math.round(packagesWithAllNamesDetected.length / allPackagesCount * 100)}% had all CommonJS named exports detected.\n`);
+	results.forEach(({ expectedNames, detectedNames, readmeEncouragesNamedExports }) => {
+		if (expectedNames.length === 0) {
+			report.passes.count++;
+			report.passes.defaultOnly++;
+		} else if (expectedNames.length === detectedNames.length) {
+			report.passes.count++;
+			report.passes.allDetected++;
+		} else if (readmeEncouragesNamedExports) {
+			if (detectedNames.length !== 0) {
+				report.passes.count++;
+				report.passes.readmeEncouragedNamedExportsAndSomeDetected++;
+			} else {
+				report.failures.count++;
+				report.failures.readmeEncouragedNamedExportsButNoneDetected++;
+			}
+		} else {
+			if (detectedNames.length !== 0) {
+				report.passes.count++;
+				report.passes.readmeDidntEncourageNamedExportsAndSomeDetected++;
+			} else {
+				report.passes.count++;
+				report.passes.readmeDidntEncourageNamedExportsAndNoneDetected++;
+			}
+		}
+	});
 
-	console.log(`- ${Math.round(packagesWithSomeNamesDetected.length / allPackagesCount * 100)}% had some CommonJS named exports detected.\n`);
+	const percentage = (numerator, denominator) => `${Math.round(numerator / denominator * 100)}% (${numerator.toLocaleString()} of ${denominator.toLocaleString()})`;
+	console.log(`Of ${testedCount.toLocaleString()} packages installed and tested:`);
 
-	console.log(`- ${Math.round(packagesWithNoNamesDetected.length / allPackagesCount * 100)}% had no CommonJS named exports detected.\n`);
+	console.log(`\n- ${percentage(report.passes.count, testedCount)} passed based on one or more of the following criteria:`);
+	console.log(`  - ${percentage(report.passes.defaultOnly, testedCount)} packages had only a default export in CommonJS.`);
+	console.log(`  - ${percentage(report.passes.allDetected, testedCount)} packages had the same number of named exports detected in CommonJS and in ESM.`);
+	console.log(`  - ${percentage(report.passes.readmeEncouragedNamedExportsAndSomeDetected, testedCount)} packages had a readme encouraging the use of named exports and some were detected.`);
+	console.log(`  - ${percentage(report.passes.readmeDidntEncourageNamedExportsAndSomeDetected, testedCount)} packages didn’t encourage the use of named exports and some were detected.`);
+	console.log(`  - ${percentage(report.passes.readmeDidntEncourageNamedExportsAndNoneDetected, testedCount)} packages didn’t encourage the use of named exports and none were detected.`);
+
+	console.log(`\n- ${percentage(report.failures.count, testedCount)} failed based on one or more of the following criteria:`);
+	console.log(`  - ${percentage(report.failures.readmeEncouragedNamedExportsButNoneDetected, testedCount)} packages had readmes encouraging the use of named exports but none were found.`);
+
+	const transpiledPackages = results.filter(result => result.transpiled);
+	const transpiledPackagesCount = transpiledPackages.length;
+	const transpiledReport = {
+		defaultOnly: 0,
+		allDetected: 0,
+		someDetected: 0,
+		noneDetected: 0,
+	};
+	transpiledPackages.forEach(({ expectedNames, detectedNames }) => {
+		if (expectedNames.length === 0) {
+			transpiledReport.defaultOnly++;
+		} else if (expectedNames.length === detectedNames.length) {
+			transpiledReport.allDetected++;
+		} else if (detectedNames.length !== 0) {
+			transpiledReport.someDetected++;
+		} else {
+			transpiledReport.noneDetected++;
+		}
+	});
+	console.log(`\nOf the subset of ${transpiledPackagesCount.toLocaleString()} packages generated via transpilation:\n`);
+	console.log(`  - ${percentage(transpiledReport.defaultOnly, transpiledPackagesCount)} packages had only a default export in CommonJS.`);
+	console.log(`  - ${percentage(transpiledReport.allDetected, transpiledPackagesCount)} packages had the same number of named exports detected in CommonJS and in ESM.`);
+	console.log(`  - ${percentage(transpiledReport.someDetected, transpiledPackagesCount)} packages had some but not all CommonJS named exports detected in ESM.`);
+	console.log(`  - ${percentage(transpiledReport.noneDetected, transpiledPackagesCount)} packages had no CommonJS named exports detected in ESM.`);
 }
 
 
@@ -277,5 +372,7 @@ const processResults = async (results) => {
 	// Test detection of CommonJS named exports by generating a JavaScript file and evaluating it
 	const results = await testPackages(packagesToTest);
 
-	await processResults(results);
+	// Analyze results and print totals
+	reportResults(results);
+	exit();
 })();

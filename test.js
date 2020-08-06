@@ -5,10 +5,10 @@ const require = createRequire(import.meta.url);
 
 
 export const compareNamedExports = (packageName, requiredPackage, importedPackage) => {
-	const transpiled = Reflect.ownKeys(requiredPackage).includes('__esModule');
 	const requiredNames = Reflect.ownKeys(requiredPackage).filter(name => name !== 'default' && name !== '__esModule');
 	const importedNames = Reflect.ownKeys(importedPackage).filter(name => name !== 'default' && name !== '__esModule');
 	const importedNamesSet = new Set(importedNames);
+	const transpiled = importedPackage.__esModule; // Truthy, not just present
 	const detectedNames = [];
 	const missingNames = [];
 	requiredNames.forEach(name => {
