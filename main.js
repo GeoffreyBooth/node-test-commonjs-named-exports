@@ -162,6 +162,11 @@ const excludePackages = new Set([
 	],
 ]);
 
+// Some dependencies of dependencies are native modules that fail to compile in the latest Node; use npm-force-resolutions to force a particular version for these transitive dependencies
+// See https://github.com/rogeriochaves/npm-force-resolutions#readme
+const forceVersionsOfTransitiveDependencies = {
+	"iconv": "*"
+}
 
 const getTopNpmPackages = async (count) => {
 	let npmRankDataRaw;
@@ -197,7 +202,19 @@ const installPackages = async (packages) => {
 	await mkdir('./test-app', {recursive: true});
 	try {
 		const fileDescriptor = await open('./test-app/package.json', 'wx'); // Will throw if file already exists
-		await fileDescriptor.writeFile('{"type": "module", "dependencies": {}}');
+		await fileDescriptor.writeFile(`
+				{
+					"type": "module",
+					"dependencies": {},
+					"devDependencies": {
+						"npm-force-resolutions": "*"
+					},
+					"scripts": {
+						"preinstall": "npx npm-force-resolutions"
+					},
+					"resolutions": ${JSON.stringify(forceVersionsOfTransitiveDependencies)}
+				}
+			`);
 	} catch {}
 	const testPackageJson = JSON.parse(await readFile('./test-app/package.json', 'utf8'));
 	const installedPackages = { ...testPackageJson.dependencies, ...testPackageJson.devDependencies };
