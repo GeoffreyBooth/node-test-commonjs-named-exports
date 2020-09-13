@@ -8,6 +8,12 @@ const execFile = promisify(execFileCallback);
 import { get } from 'https';
 import { chdir, cwd, execPath, stdout as processStdout, exit } from 'process';
 
+import Module, { createRequire } from 'module';
+const originalModuleLoad = Module.prototype.load;
+const originalModuleCompile = Module.prototype._compile;
+const require = createRequire(import.meta.url);
+const originalRequireJs = require.extensions['.js'];
+
 
 const excludePackages = new Set([
 	// Ignore the Node builtins; https://github.com/sindresorhus/builtin-modules/blob/master/builtin-modules.json
@@ -265,6 +271,9 @@ const testPackages = async (packages) => {
 		const result = test.runTest();
 		result.readmeEncouragesNamedExports = readmeEncouragesNamedExports;
 		results.push(result);
+		Module.prototype.load = originalModuleLoad;
+		Module.prototype._compile = originalModuleCompile;
+		require.extensions['.js'] = originalRequireJs;
 	}
 	processStdout.clearLine();
 	processStdout.cursorTo(0);
