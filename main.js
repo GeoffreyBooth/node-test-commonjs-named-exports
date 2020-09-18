@@ -200,87 +200,52 @@ const testPackages = async (nodeBinary, packages) => {
 }
 
 
-const reportResults = (results) => {
-	const testedCount = results.length;
-
-	// First run through all packages and determine if each one passes or fails per our criteria
-	const report = {
-		passes: {
+const reportResults = (allResults) => {
+	const generateReport = (results) => {
+		const report = {
 			count: 0,
 			defaultOnly: 0,
 			allDetected: 0,
-			readmeEncouragedNamedExportsAndSomeDetected: 0,
-			readmeDidntEncourageNamedExportsAndSomeDetected: 0,
-			readmeDidntEncourageNamedExportsAndNoneDetected: 0,
-		},
-		failures: {
-			count: 0,
-			readmeEncouragedNamedExportsButNoneDetected: 0,
+			someDetected: 0,
+			noneDetected: 0,
 		}
+		results.forEach(({ expectedNames, detectedNames }) => {
+			report.count++;
+			if (expectedNames.length === 0) {
+				report.defaultOnly++;
+			} else if (expectedNames.length === detectedNames.length) {
+				report.allDetected++;
+			} else if (expectedNames.length !== 0 && detectedNames.length !== 0) {
+				report.someDetected++;
+			} else if (expectedNames.length !== 0 && detectedNames.length === 0) {
+				report.noneDetected++;
+			}
+		});
+		return report;
 	}
-	results.forEach(({ expectedNames, detectedNames, readmeEncouragesNamedExports }) => {
-		if (expectedNames.length === 0) {
-			report.passes.count++;
-			report.passes.defaultOnly++;
-		} else if (expectedNames.length === detectedNames.length) {
-			report.passes.count++;
-			report.passes.allDetected++;
-		} else if (readmeEncouragesNamedExports) {
-			if (detectedNames.length !== 0) {
-				report.passes.count++;
-				report.passes.readmeEncouragedNamedExportsAndSomeDetected++;
-			} else {
-				report.failures.count++;
-				report.failures.readmeEncouragedNamedExportsButNoneDetected++;
-			}
-		} else {
-			if (detectedNames.length !== 0) {
-				report.passes.count++;
-				report.passes.readmeDidntEncourageNamedExportsAndSomeDetected++;
-			} else {
-				report.passes.count++;
-				report.passes.readmeDidntEncourageNamedExportsAndNoneDetected++;
-			}
-		}
-	});
 
 	const percentage = (numerator, denominator) => `${Math.round(numerator / denominator * 100)}% (${numerator.toLocaleString()} of ${denominator.toLocaleString()})`;
-	console.log(`Of ${testedCount.toLocaleString()} packages installed and tested:`);
 
-	console.log(`\n- ${percentage(report.passes.count, testedCount)} passed based on one or more of the following criteria:`);
-	console.log(`  - ${percentage(report.passes.defaultOnly, testedCount)} packages had only a default export in CommonJS.`);
-	console.log(`  - ${percentage(report.passes.allDetected, testedCount)} packages had the same number of named exports detected in CommonJS and in ESM.`);
-	console.log(`  - ${percentage(report.passes.readmeEncouragedNamedExportsAndSomeDetected, testedCount)} packages had a readme encouraging the use of named exports and some were detected.`);
-	console.log(`  - ${percentage(report.passes.readmeDidntEncourageNamedExportsAndSomeDetected, testedCount)} packages didn’t encourage the use of named exports and some were detected.`);
-	console.log(`  - ${percentage(report.passes.readmeDidntEncourageNamedExportsAndNoneDetected, testedCount)} packages didn’t encourage the use of named exports and none were detected.`);
+	const mainReport = generateReport(allResults);
+	console.log(`Of all ${mainReport.count.toLocaleString()} packages installed and tested:\n`);
+	console.log(`  - ${percentage(mainReport.defaultOnly, mainReport.count)} packages had only a default export in CommonJS and therefore also in ESM.`);
+	console.log(`  - ${percentage(mainReport.allDetected, mainReport.count)} packages had the same number of named exports detected in CommonJS and in ESM.`);
+	console.log(`  - ${percentage(mainReport.someDetected, mainReport.count)} packages had some but not all CommonJS exports detected in ESM.`);
+	console.log(`  - ${percentage(mainReport.noneDetected, mainReport.count)} packages had no CommonJS exports detected in ESM.`);
 
-	console.log(`\n- ${percentage(report.failures.count, testedCount)} failed based on one or more of the following criteria:`);
-	console.log(`  - ${percentage(report.failures.readmeEncouragedNamedExportsButNoneDetected, testedCount)} packages had readmes encouraging the use of named exports but none were found.`);
+	const readmeReport = generateReport(allResults.filter(result => result.readmeEncouragesNamedExports));
+	console.log(`\nOf ${readmeReport.count.toLocaleString()} packages that had a readme encouraging the use of named exports:\n`);
+	console.log(`  - ${percentage(readmeReport.defaultOnly, readmeReport.count)} packages had only a default export in CommonJS and therefore also in ESM.`);
+	console.log(`  - ${percentage(readmeReport.allDetected, readmeReport.count)} packages had the same number of named exports detected in CommonJS and in ESM.`);
+	console.log(`  - ${percentage(readmeReport.someDetected, readmeReport.count)} packages had some but not all CommonJS exports detected in ESM.`);
+	console.log(`  - ${percentage(readmeReport.noneDetected, readmeReport.count)} packages had no CommonJS exports detected in ESM.`);
 
-	const transpiledPackages = results.filter(result => result.transpiled);
-	const transpiledPackagesCount = transpiledPackages.length;
-	const transpiledReport = {
-		defaultOnly: 0,
-		allDetected: 0,
-		someDetected: 0,
-		noneDetected: 0,
-	};
-	transpiledPackages.forEach(({ expectedNames, detectedNames }) => {
-		if (expectedNames.length === 0) {
-			transpiledReport.defaultOnly++;
-		} else if (expectedNames.length === detectedNames.length) {
-			transpiledReport.allDetected++;
-		} else if (detectedNames.length !== 0) {
-			transpiledReport.someDetected++;
-		} else {
-			transpiledReport.noneDetected++;
-		}
-	});
-	console.log(`\nOf the subset of ${transpiledPackagesCount.toLocaleString()} packages generated via transpilation:\n`);
-	console.log(`  - ${percentage(transpiledReport.defaultOnly, transpiledPackagesCount)} packages had only a default export in CommonJS.`);
-	console.log(`  - ${percentage(transpiledReport.allDetected, transpiledPackagesCount)} packages had the same number of named exports detected in CommonJS and in ESM.`);
-	console.log(`  - ${percentage(transpiledReport.someDetected, transpiledPackagesCount)} packages had some but not all CommonJS named exports detected in ESM.`);
-	console.log(`  - ${percentage(transpiledReport.noneDetected, transpiledPackagesCount)} packages had no CommonJS named exports detected in ESM.`);
+	const transpiledReport = generateReport(allResults.filter(result => result.transpiled));
+	console.log(`\nOf ${transpiledReport.count.toLocaleString()} packages generated via transpilation:\n`);
+	console.log(`  - ${percentage(transpiledReport.defaultOnly, transpiledReport.count)} packages had only a default export in CommonJS and therefore also in ESM.`);
+	console.log(`  - ${percentage(transpiledReport.allDetected, transpiledReport.count)} packages had the same number of named exports detected in CommonJS and in ESM.`);
+	console.log(`  - ${percentage(transpiledReport.someDetected, transpiledReport.count)} packages had some but not all CommonJS exports detected in ESM.`);
+	console.log(`  - ${percentage(transpiledReport.noneDetected, transpiledReport.count)} packages had no CommonJS exports detected in ESM.`);
 }
 
 
