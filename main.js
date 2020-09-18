@@ -6,7 +6,7 @@ import { execFile as execFileCallback } from 'child_process';
 const execFile = promisify(execFileCallback);
 
 import { get } from 'https';
-import { chdir, cwd, execPath, stdout as processStdout, exit } from 'process';
+import { argv, chdir, cwd, execPath, stdout as processStdout, exit } from 'process';
 
 import Module, { createRequire } from 'module';
 const originalModuleLoad = Module.prototype.load;
@@ -57,328 +57,6 @@ const excludePackages = new Set([
 		'vm',
 		'zlib'
 	],
-	// And leave out packages that can’t build under macOS or print warnings on requiring
-	...[
-		'101',
-		'after',
-		'aliyun-sdk',
-		'amazeui',
-		'amp-message',
-		'ampersand-view',
-		'angular',
-		'angular-sanitize',
-		'angular-translate',
-		'angular-ui-router',
-		'angulartics',
-		'anima-yocto-core',
-		'anima-yocto-event',
-		'anima-yocto-lite',
-		'apeman-proto-abstract',
-		'apeman-react-style',
-		'aping',
-		'apn',
-		'archiver-utils',
-		'artusi-kitchen-tools',
-		'autoprefixer-core',
-		'ava',
-		'awssum',
-		'azure',
-		'babel',
-		'babel-cli',
-		'babel-loader',
-		'babel-plugin-transform-es2015-parameters',
-		'babel-register',
-		'base64',
-		'baudio',
-		'bean',
-		'bigint',
-		'bin-build',
-		'bitcore',
-		'blob',
-		'bluetooth-hci-socket',
-		'bonzo',
-		'bookshelf',
-		'bootstrap',
-		'bosonic',
-		'bourbon-neat',
-		'browser-fingerprint',
-		'browser-request',
-		'browserify-middleware',
-		'browserstacktunnel-wrapper',
-		'bufferstream',
-		'buffertools',
-		'buffy',
-		'caf_core',
-		'cassandra-driver',
-		'cfn-lambda',
-		'cipher-base',
-		'classie',
-		'cliff',
-		'closest',
-		'cloudinary',
-		'codecov.io',
-		'codemirror',
-		'component-builder',
-		'component-raf',
-		'config',
-		'cordova',
-		'cordova-lib',
-		'couchr',
-		'csv-parser',
-		'csv-string',
-		'csvtojson',
-		'cucumber',
-		'datauri',
-		'ddp',
-		'decompress',
-		'derby',
-		'desandro-matches-selector',
-		'dnode',
-		'dojo',
-		'dom-events',
-		'dom-matchesselector',
-		'domready',
-		'download',
-		'edge',
-		'edp-core',
-		'electron-download',
-		'email-templates',
-		'ember',
-		'ember-auth',
-		'ember-template-compiler',
-		'epoll',
-		'errors',
-		'es5-shim',
-		'exec-sync',
-		'execSync',
-		'express.io',
-		'fairmont',
-		'fbjs',
-		'fetch',
-		'ffi',
-		'fibers',
-		'filed',
-		'firebase',
-		'firmata',
-		'fis-parser-less',
-		'fis3',
-		'flushwritable',
-		'forever',
-		'fs-sync',
-		'fstream',
-		'fstream-ignore',
-		'gcloud',
-		'geoip-lite',
-		'get-pixels',
-		'get-size',
-		'gherkin',
-		'github',
-		'global-modules',
-		'good-squeeze',
-		'gridfs-stream',
-		'grunt',
-		'gulp-browserify',
-		'gulp-changed',
-		'gulp-coffee',
-		'gulp-eslint',
-		'gulp-git',
-		'gulp-header',
-		'gulp-imagemin',
-		'gulp-jade',
-		'gulp-load-plugins',
-		'gulp-stylus',
-		'haml-coffee',
-		'hammerjs',
-		'highlight',
-		'hiredis',
-		'http-agent',
-		'i2c',
-		'iced-coffee-script',
-		'iconv',
-		'inline-process-browser',
-		'inotify',
-		'insight',
-		'iotdb',
-		'istanbul',
-		'jayson',
-		'jimp',
-		'jquery',
-		'jQuery',
-		'jquery-browserify',
-		'jquery-github',
-		'jquery-ui',
-		'jsforce',
-		'jslint',
-		'json2csv',
-		'jspm',
-		'kafka-node',
-		'karma-phantomjs-launcher',
-		'keep-alive-agent',
-		'kexec',
-		'kronos-step',
-		'kue',
-		'lame',
-		'laravel-elixir',
-		'latest',
-		'ldjson-stream',
-		'le_node',
-		'leaflet',
-		'line-input-stream',
-		'linebreak',
-		'lint',
-		'localtunnel',
-		'loopback-connector',
-		'lwip',
-		'lynx',
-		'mailgun-js',
-		'mapnik',
-		'mariasql',
-		'match-stream',
-		'material-ui',
-		'media',
-		'memwatch',
-		'meow',
-		'meshblu-core-manager-whitelist',
-		'metalsmith',
-		'mincer',
-		'mithril',
-		'mraa',
-		'msgpack5',
-		'n3',
-		'nan',
-		'newrelic',
-		'nib',
-		'nightmare',
-		'noble',
-		'noble-device',
-		'node-bourbon',
-		'node-fetch',
-		'node-fibers',
-		'node-gcm',
-		'node-icu-charset-detector',
-		'node-inspector',
-		'node-neat',
-		'node-png',
-		'node-protobuf',
-		'node-proxy',
-		'node-ssdp',
-		'node-syslog',
-		'node-telegram-bot-api',
-		'node.flow',
-		'nodegit',
-		'NodObjC',
-		'noflo',
-		'npm-registry',
-		'npmconf',
-		'ntwitter',
-		'onoff',
-		'opencv',
-		'optipng-bin',
-		'oracledb',
-		'orchestrate',
-		'pagelet',
-		'parse',
-		'pdfkit',
-		'pg',
-		'pg-query-stream',
-		'pg.js',
-		'phant-manager-http',
-		'picture-tube',
-		'pixi.js',
-		'player',
-		'pmx',
-		'posix',
-		'progress-stream',
-		'prompt',
-		'protractor',
-		'pty.js',
-		'pubnub',
-		'pullstream',
-		'pygmentize-bundled',
-		'qn',
-		'qwery',
-		'rabbit.js',
-		'raf-component',
-		'raphael',
-		'react-addons-test-utils',
-		'react-for-atom',
-		'read-stream',
-		'ref',
-		'ref-struct',
-		'rem',
-		'require-dir',
-		'rethinkdbdash',
-		'ripple-lib',
-		'rmdir',
-		's3',
-		'scriptjs',
-		'sdk',
-		'sharp',
-		'simplesmtp',
-		'soupselect',
-		'source-map-support',
-		'source-map-support',
-		'standard',
-		'stb-util-parse-query',
-		'stream-counter',
-		'streamifier',
-		'streamline-runtime',
-		'strip-bom-stream',
-		'stylus',
-		'sync',
-		'tar-pack',
-		'tar.gz',
-		'tarball-extract',
-		'temp-write',
-		'template',
-		'terminal-menu',
-		'through2-map',
-		'time',
-		'tingle-context',
-		'tingle-style',
-		'tmodjs',
-		'tower-directive',
-		'transformer-conversion',
-		'tsd',
-		'u-css',
-		'uglify-js2',
-		'unirest',
-		'unreachable-branch-transform',
-		'unzip',
-		'ursa',
-		'usage',
-		'usb',
-		'v8-profiler',
-		'velocity-animate',
-		'vinyl-buffer',
-		'weak',
-		'web3',
-		'webcomponents.js',
-		'webdriverio',
-		'webpack-dev-middleware',
-		'webpack-dev-server',
-		'webshot',
-		'weinre',
-		'whatwg-fetch',
-		'windows.foundation',
-		'windows.storage',
-		'windows.storage.fileproperties',
-		'windows.storage.provider',
-		'windows.storage.search',
-		'windows.storage.streams',
-		'workshopper-exercise',
-		'x-log',
-		'x-ray',
-		'xoauth2',
-		'xpc-connection',
-		'xtuple-server-lib',
-		'xxhash',
-		'ytdl-core',
-		'yuidocjs',
-		'zip-stream',
-		'zmq',
-		'zrenderjs',
-	],
 ]);
 
 // Some dependencies of dependencies are native modules that fail to compile in the latest Node; use npm-force-resolutions to force a particular version for these transitive dependencies
@@ -417,7 +95,7 @@ const getTopNpmPackages = async (count) => {
 }
 
 
-const installPackages = async (packages) => {
+const installPackages = async (nodeBinary, packages) => {
 	await mkdir('./test-app', {recursive: true});
 	try {
 		const fileDescriptor = await open('./test-app/package.json', 'wx'); // Will throw if file already exists
@@ -428,6 +106,7 @@ const installPackages = async (packages) => {
 					"devDependencies": {
 						"npm-force-resolutions": "*"
 					},
+					"uninstallable": {},
 					"scripts": {
 						"preinstall": "npx npm-force-resolutions"
 					},
@@ -440,7 +119,7 @@ const installPackages = async (packages) => {
 	const installedPackagesToTest = [];
 	for (let i = 0, len = packages.length; i < len; i++) {
 		const name = packages[i];
-		if (excludePackages.has(name)) {
+		if (excludePackages.has(name) || testPackageJson.uninstallable[name]) {
 			continue;
 		} else if (installedPackages[name]) {
 			installedPackagesToTest.push(name);
@@ -450,10 +129,13 @@ const installPackages = async (packages) => {
 			processStdout.clearLine();
 			processStdout.cursorTo(0);
 			processStdout.write(`Installing package: ${name}`)
-			await execFile('npm', ['install', name], {cwd: `${cwd()}/test-app`});
+			await execFile(nodeBinary, ['./deps/npm/bin/npm-cli.js', 'install', name], {cwd: `${cwd()}/test-app`});
 			installedPackagesToTest.push(name);
 		} catch (error) {
-			console.error(`Error installing ${name}:`, error);
+			// console.error(`Error installing ${name}:`, error);
+			const currentTestPackageJson = JSON.parse(await readFile('./test-app/package.json', 'utf8'));
+			currentTestPackageJson.uninstallable[name] = true;
+			await writeFile('./test-app/package.json', JSON.stringify(currentTestPackageJson, null, '  '));
 		}
 	}
 	processStdout.clearLine();
@@ -488,7 +170,7 @@ const analyzePackages = async (packages) => {
 }
 
 
-const testPackages = async (packages) => {
+const testPackages = async (nodeBinary, packages) => {
 	const results = [];
 	const testScript = await readFile('./test.js', 'utf8');
 	for (let i = 0, len = packages.length; i < len; i++) {
@@ -498,13 +180,13 @@ const testPackages = async (packages) => {
 		processStdout.clearLine();
 		processStdout.cursorTo(0);
 		processStdout.write(`Testing package ${i}: ${name}`);
-		let test;
+		let result;
 		try {
-			test = await import(`./test-app/run-test.js?${i}`);
+			const { stdout } = await execFile(nodeBinary, ['run-test.js'], {cwd: `${cwd()}/test-app`, timeout: 10000});
+			result = JSON.parse(stdout);
 		} catch {
-			continue; // Skip modules that fail to import, e.g. because they assume a browser environment
+			continue; // Skip modules where the test can't generate output, usually because the package itself has thrown errors (it expects a browser environment, for example)
 		}
-		const result = test.runTest();
 		result.readmeEncouragesNamedExports = readmeEncouragesNamedExports;
 		results.push(result);
 		Module.prototype.load = originalModuleLoad;
@@ -603,19 +285,21 @@ const reportResults = (results) => {
 
 
 // Main entry point
-(async (count = 3000) => {
+(async () => {
+	const [nodeBinary, , count = 3000] = argv;
 	console.log(`Testing CommonJS named exports detection for top ${count} packages...`);
+
 	// Get top packages’ names
 	const topNpmPackages = await getTopNpmPackages(count);
 
 	// Create a test app and install those packages
-	const installedPackages = await installPackages(topNpmPackages);
+	const installedPackages = await installPackages(nodeBinary, topNpmPackages);
 
 	// Analyze packages to determine which ones we should expect named exports from
 	const packagesToTest = await analyzePackages(installedPackages);
 
 	// Test detection of CommonJS named exports by generating a JavaScript file and evaluating it
-	const results = await testPackages(packagesToTest);
+	const results = await testPackages(nodeBinary, packagesToTest.slice(10));
 
 	// Analyze results and print totals
 	reportResults(results);

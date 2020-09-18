@@ -27,18 +27,20 @@ export const compareNamedExports = (packageName, requiredPackage, importedPackag
 		}
 	}
 
-	return {
+	console.log(JSON.stringify({
 		name: packageName,
 		transpiled,
 		expectedNames: requiredNames,
 		detectedNames,
 		missingNames
-	}
+	}));
 };
 
 
 import * as importedPackage from 'REPLACE_WITH_PACKAGE_NAME';
-export const runTest = () => {
+
+// Main entry point
+(async () => {
 	try {
 		require.cache = Object.create(null); // Clear CommonJS cache
 		const requiredPackage = require('REPLACE_WITH_PACKAGE_NAME');
@@ -51,4 +53,4 @@ export const runTest = () => {
 			missingNames: []
 		}
 	}
-}
+})();
