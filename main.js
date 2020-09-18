@@ -1,6 +1,7 @@
 import { promises as fs, constants as fsConstants } from 'fs';
 const { mkdir, readFile, open, writeFile } = fs;
 
+import { dirname, join } from 'path';
 import { promisify } from 'util';
 import { execFile as execFileCallback } from 'child_process';
 const execFile = promisify(execFileCallback);
@@ -129,7 +130,7 @@ const installPackages = async (nodeBinary, packages) => {
 			processStdout.clearLine();
 			processStdout.cursorTo(0);
 			processStdout.write(`Installing package: ${name}`)
-			await execFile(nodeBinary, ['./deps/npm/bin/npm-cli.js', 'install', name], {cwd: `${cwd()}/test-app`});
+			await execFile(nodeBinary, [join(dirname(nodeBinary), '../../deps/npm/bin/npm-cli.js'), 'install', name], {cwd: `${cwd()}/test-app`});
 			installedPackagesToTest.push(name);
 		} catch (error) {
 			// console.error(`Error installing ${name}:`, error);
