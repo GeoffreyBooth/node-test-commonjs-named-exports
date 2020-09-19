@@ -214,7 +214,7 @@ const reportResults = (allResults) => {
 			report.count++;
 			if (expectedNames.length === 0) {
 				report.defaultOnly++;
-			} else if (expectedNames.length === detectedNames.length) {
+			} else if (expectedNames.length <= detectedNames.length) {
 				report.allDetected++;
 			} else if (expectedNames.length !== 0 && detectedNames.length !== 0) {
 				report.someDetected++;
