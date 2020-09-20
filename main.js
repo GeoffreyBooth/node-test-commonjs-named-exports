@@ -1,5 +1,5 @@
 import { promises as fs, constants as fsConstants } from 'fs';
-const { mkdir, readFile, open, writeFile } = fs;
+const { stat, mkdir, readFile, open, writeFile } = fs;
 
 import { dirname, join } from 'path';
 import { promisify } from 'util';
@@ -60,12 +60,6 @@ const excludePackages = new Set([
 	],
 ]);
 
-// Some dependencies of dependencies are native modules that fail to compile in the latest Node; use npm-force-resolutions to force a particular version for these transitive dependencies
-// See https://github.com/rogeriochaves/npm-force-resolutions#readme
-const forceVersionsOfTransitiveDependencies = {
-	"iconv": "*"
-}
-
 const getTopNpmPackages = async (count) => {
 	let npmRankDataRaw;
 	try {
@@ -96,49 +90,65 @@ const getTopNpmPackages = async (count) => {
 }
 
 
-const installPackages = async (nodeBinary, packages) => {
-	await mkdir('./test-app', {recursive: true});
-	try {
-		const fileDescriptor = await open('./test-app/package.json', 'wx'); // Will throw if file already exists
-		await fileDescriptor.writeFile(`
-				{
-					"type": "module",
-					"dependencies": {},
-					"devDependencies": {
-						"npm-force-resolutions": "*"
-					},
-					"uninstallable": {},
-					"scripts": {
-						"preinstall": "npx npm-force-resolutions"
-					},
-					"resolutions": ${JSON.stringify(forceVersionsOfTransitiveDependencies)}
-				}
-			`);
-	} catch {}
-	const testPackageJson = JSON.parse(await readFile('./test-app/package.json', 'utf8'));
-	const installedPackages = { ...testPackageJson.dependencies, ...testPackageJson.devDependencies };
-	const installedPackagesToTest = [];
-	for (let i = 0, len = packages.length; i < len; i++) {
-		const name = packages[i];
-		if (excludePackages.has(name) || testPackageJson.uninstallable[name]) {
-			continue;
-		} else if (installedPackages[name]) {
-			installedPackagesToTest.push(name);
-			continue;
-		}
+const installPackages = async (nodeBinary, count, packages) => {
+	// Install packages in subfolders where each subfolder holds 200 packages
+	// This is because after hundreds of dependencies, `npm install` takes exponentially longer
+	const packagesPerFolder = 200;
+	let startIndex = 0;
+	let installedPackagesToTest = [];
+
+	while (startIndex < packages.length) {
+		const endIndex = Math.min(count, startIndex + packagesPerFolder);
+		processStdout.clearLine();
+		processStdout.cursorTo(0);
+		processStdout.write(`Installing packages ${startIndex}-${endIndex}...`)
+
+		const packagesToInstall = packages.slice(startIndex, endIndex);
+		const packageJson = {type: 'module', dependencies: {}};
+		packagesToInstall.forEach(name => {
+			packageJson.dependencies[name] = '*';
+		});
+		const packagesFolder = `packages-${startIndex}-${endIndex}`;
+		await mkdir(`./${packagesFolder}`, {recursive: true});
+
+		let alreadyInstalled = true;
 		try {
-			processStdout.clearLine();
-			processStdout.cursorTo(0);
-			processStdout.write(`Installing package: ${name}`)
-			await execFile(nodeBinary, [join(dirname(nodeBinary), '../../deps/npm/bin/npm-cli.js'), 'install', name], {cwd: `${cwd()}/test-app`});
-			installedPackagesToTest.push(name);
-		} catch (error) {
-			// console.error(`Error installing ${name}:`, error);
-			const currentTestPackageJson = JSON.parse(await readFile('./test-app/package.json', 'utf8'));
-			currentTestPackageJson.uninstallable[name] = true;
-			await writeFile('./test-app/package.json', JSON.stringify(currentTestPackageJson, null, '  '));
+			const stats = await stat(`./${packagesFolder}/node_modules`);
+		} catch {
+			// node_modules folder already exists, no need to rerun installation
+			alreadyInstalled = false;
 		}
+
+		if (!alreadyInstalled) {
+			let handle;
+			try {
+				handle = await open(`./${packagesFolder}/package.json`, 'wx'); // Will throw if file already exists
+				await handle.writeFile(JSON.stringify(packageJson, null, '  '));
+			} catch {} finally {
+				if (handle) {
+					await handle.close();
+				}
+			}
+
+			try {
+				await execFile(nodeBinary, [join(dirname(nodeBinary), '../../deps/npm/bin/npm-cli.js'), 'install', '--force', '--ignore-scripts', '--no-optional', `--nodedir=${nodeBinary}`, '--only=prod', '--no-audit'], {cwd: `${cwd()}/${packagesFolder}`});
+			} catch {
+				// If installing all 200 at once fails, install each one individually
+				for (let i = packagesToInstall.length - 1; i >= 0; i--) {
+					try {
+						await execFile(nodeBinary, [join(dirname(nodeBinary), '../../deps/npm/bin/npm-cli.js'), 'install', packagesToInstall[i], '--force', '--ignore-scripts', '--no-optional', `--nodedir=${nodeBinary}`, '--only=prod', '--no-audit'], {cwd: `${cwd()}/${packagesFolder}`});
+					} catch {}
+				}
+			}
+		}
+
+		const installedPackageJson = JSON.parse(await readFile(`./${packagesFolder}/package.json`, 'utf8'));
+		const installedPackages = Object.keys({ ...installedPackageJson.dependencies, ...installedPackageJson.devDependencies }).map(name => { return {name, folder: packagesFolder}});
+		installedPackagesToTest = [...installedPackagesToTest, ...installedPackages];
+
+		startIndex = startIndex + packagesPerFolder;
 	}
+
 	processStdout.clearLine();
 	processStdout.cursorTo(0);
 	return installedPackagesToTest;
@@ -148,14 +158,14 @@ const installPackages = async (nodeBinary, packages) => {
 const analyzePackages = async (packages) => {
 	const packagesToTest = [];
 	for (let i = 0, len = packages.length; i < len; i++) {
-		const name = packages[i];
+		const { name, folder } = packages[i];
 
 		let readme;
 		try {
-			readme = await readFile(`./test-app/node_modules/${name}/readme.md`, 'utf8');
+			readme = await readFile(`./${folder}/node_modules/${name}/readme.md`, 'utf8');
 		} catch {
 			try {
-				readme = await readFile(`./test-app/node_modules/${name}/readme.markdown`, 'utf8');
+				readme = await readFile(`./${folder}/node_modules/${name}/readme.markdown`, 'utf8');
 			} catch {
 				continue; // Exclude packages that have no readmes
 			}
@@ -165,7 +175,7 @@ const analyzePackages = async (packages) => {
 			new RegExp(`import {.*} from ['"]${name}['"\`]`).test(readme) ||
 			new RegExp(`{.*} = require\\(['"\`]${name}['"\`]`).test(readme);
 
-		packagesToTest.push({name, readmeEncouragesNamedExports});
+		packagesToTest.push({name, folder, readmeEncouragesNamedExports});
 	}
 	return packagesToTest;
 }
@@ -175,15 +185,15 @@ const testPackages = async (nodeBinary, packages) => {
 	const results = [];
 	const testScript = await readFile('./test.js', 'utf8');
 	for (let i = 0, len = packages.length; i < len; i++) {
-		const { name, readmeEncouragesNamedExports } = packages[i];
+		const { name, folder, readmeEncouragesNamedExports } = packages[i];
 		const js = testScript.replace(/REPLACE_WITH_PACKAGE_NAME/g, name);
-		await writeFile('./test-app/run-test.js', js);
+		await writeFile(`./${folder}/run-test.js`, js);
 		processStdout.clearLine();
 		processStdout.cursorTo(0);
 		processStdout.write(`Testing package ${i}: ${name}`);
 		let result;
 		try {
-			const { stdout } = await execFile(nodeBinary, ['run-test.js'], {cwd: `${cwd()}/test-app`, timeout: 10000});
+			const { stdout } = await execFile(nodeBinary, ['run-test.js'], {cwd: `${cwd()}/${folder}`, timeout: 10000});
 			result = JSON.parse(stdout);
 		} catch {
 			continue; // Skip modules where the test can't generate output, usually because the package itself has thrown errors (it expects a browser environment, for example)
@@ -233,7 +243,7 @@ const reportResults = (allResults) => {
 	}
 
 	const mainReport = generateReport(allResults);
-	console.log(`Of all ${mainReport.count.toLocaleString()} packages installed and tested:\n`);
+	console.log(`\nOf all ${mainReport.count.toLocaleString()} packages installed and tested:\n`);
 	printReport(mainReport);
 
 	const readmeReport = generateReport(allResults.filter(result => result.readmeEncouragesNamedExports));
@@ -255,7 +265,7 @@ const reportResults = (allResults) => {
 	const topNpmPackages = await getTopNpmPackages(count);
 
 	// Create a test app and install those packages
-	const installedPackages = await installPackages(nodeBinary, topNpmPackages);
+	const installedPackages = await installPackages(nodeBinary, count, topNpmPackages);
 
 	// Analyze packages to determine which ones we should expect named exports from
 	const packagesToTest = await analyzePackages(installedPackages);
