@@ -108,7 +108,7 @@ const installPackages = async (nodeBinary, count, packages) => {
 		packagesToInstall.forEach(name => {
 			packageJson.dependencies[name] = '*';
 		});
-		const packagesFolder = `packages-${startIndex}-${endIndex}`;
+		const packagesFolder = `packages/packages-${startIndex}-${endIndex}`;
 		await mkdir(`./${packagesFolder}`, {recursive: true});
 
 		let alreadyInstalled = true;
